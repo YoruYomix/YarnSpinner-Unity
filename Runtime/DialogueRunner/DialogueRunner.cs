@@ -645,7 +645,37 @@ namespace Yarn.Unity
 
         private void OnNodeCompleted(string completedNodeName)
         {
+            OnNodeCompletedAsync(completedNodeName).Forget();
+        }
+
+        private async YarnTask OnNodeCompletedAsync(string completedNodeName)
+        {
             onNodeComplete?.Invoke(completedNodeName);
+
+            var pendingTasks = new List<YarnTask>();
+            foreach (var presenter in dialoguePresenters)
+            {
+                if (presenter == null)
+                {
+                    continue;
+                }
+
+                if (presenter.enabled == false)
+                {
+                    continue;
+                }
+
+                presenter.OnNodeCompleted(completedNodeName);
+                pendingTasks.Add(RunNodeCompletedAsync(presenter, completedNodeName));
+            }
+
+            var waitForNodeCompleted = YarnTask.WhenAll(pendingTasks);
+            var completedSynchronously = waitForNodeCompleted.IsCompletedSuccessfully();
+            if (!completedSynchronously)
+            {
+                await waitForNodeCompleted;
+            }
+
             foreach (var presenter in dialoguePresenters)
             {
                 if (presenter == null)
@@ -659,6 +689,31 @@ namespace Yarn.Unity
                 }
 
                 presenter.OnNodeExit(completedNodeName);
+            }
+
+            if (completedSynchronously)
+            {
+                Dialogue.SignalContentComplete();
+            }
+            else if (!(dialogueCancellationSource?.IsCancellationRequested ?? false))
+            {
+                Dialogue.Continue();
+            }
+        }
+
+        private async YarnTask RunNodeCompletedAsync(DialoguePresenterBase presenter, string completedNodeName)
+        {
+            try
+            {
+                await presenter.OnNodeCompletedAsync(completedNodeName);
+            }
+            catch (System.OperationCanceledException)
+            {
+                Debug.LogWarning($"Dialogue presenter {presenter.name} threw an {nameof(System.OperationCanceledException)} when running its {nameof(DialoguePresenterBase.OnNodeCompletedAsync)} method. Dialogue presenters should not throw this exception; instead, clean up any needed user-facing content, and return.", presenter);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogException(ex, presenter);
             }
         }
 

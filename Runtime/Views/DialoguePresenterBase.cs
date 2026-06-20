@@ -168,8 +168,12 @@ namespace Yarn.Unity
         public abstract YarnTask OnDialogueCompleteAsync();
 
         // these are virtual because it's quite likely you don't need them
-        // they are also void instead of YarnTask because currently the VM doesn't wait on node enter/exit so we can't either
         public virtual void OnNodeEnter(string nodeName) { }
+        public virtual void OnNodeCompleted(string nodeName) { }
+        public virtual YarnTask OnNodeCompletedAsync(string nodeName)
+        {
+            return YarnTask.CompletedTask;
+        }
         public virtual void OnNodeExit(string nodeName) { }
 
         public virtual IAsyncTypewriter? Typewriter { get; set; }
